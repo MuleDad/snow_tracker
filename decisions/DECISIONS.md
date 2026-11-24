@@ -16,13 +16,15 @@ Verified = Michael confirmed. Proposed = Claude suggested, not confirmed. Open =
   file is part of bucket 1.
 - **2026-11-23: Units.** Decimal inches.
 - **2026-11-23: First bucket.** Entry (add/edit/delete) plus backup. Graphs come later.
-- **2026-11-23: Old data source.** Google Keep.
+- **2026-11-23: Old data source.** Google Keep (and a Google Sheet export).
+- **2026-11-24: Public repo.** GitHub repo MuleDad/snow_tracker is public. Michael's
+  historical readings in `reference/` are published as example data.
+- **2026-11-24: Hosting.** GitHub Pages (free on a public repo), serving static code only.
 
 ## Proposed
 - **2026-11-23: Measuring method.** Measure current total depth in the yard instead of
   clearing the deck between readings. Michael said "maybe"; confirm after trying it.
 - **2026-11-23: Bucket order.** 01 entry + backup, 02 import Keep, 03 graphs, 04 share image.
-- **2026-11-23: Hosting.** Free static hosting (e.g. GitHub Pages) serving code only.
 
 ## Open
 - Keep export method: copy-paste note text into `reference/` vs Google Takeout.
