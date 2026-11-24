@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Snow Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <h1>Snow Tracker</h1>
+
+    <div id="backup-banner" class="banner" hidden>
+      <span>You have changes that aren't backed up.</span>
+      <button type="button" id="banner-backup">Back up</button>
+    </div>
+
+    <form id="entry-form" novalidate>
+      <h2 id="form-title">New reading</h2>
+
+      <label for="taken-at">Date and time</label>
+      <input type="datetime-local" id="taken-at" required>
+
+      <label for="inches">Inches</label>
+      <div class="row">
+        <input type="text" id="inches" inputmode="decimal" autocomplete="off" placeholder="e.g. 2.5">
+        <button type="button" id="dusting" class="secondary">Dusting</button>
+      </div>
+
+      <fieldset class="kind">
+        <legend>Type</legend>
+        <label><input type="radio" name="kind" value="new"> New snow</label>
+        <label><input type="radio" name="kind" value="total"> Total depth</label>
+      </fieldset>
+
+      <label for="note">Note (optional)</label>
+      <input type="text" id="note" autocomplete="off">
+
+      <p id="form-error" class="error" role="alert"></p>
+
+      <div class="row">
+        <button type="submit" id="save">Save</button>
+        <button type="button" id="cancel" class="secondary" hidden>Cancel</button>
+        <button type="button" id="delete" class="danger" hidden>Delete</button>
+      </div>
+    </form>
+
+    <p id="status" class="status" role="status"></p>
+
+    <section>
+      <h2>Readings</h2>
+      <p id="empty" class="muted">No readings yet.</p>
+      <ul id="list" class="list"></ul>
+    </section>
+
+    <section class="backup">
+      <h2>Backup</h2>
+      <p id="last-backup" class="muted"></p>
+      <div class="row">
+        <button type="button" id="backup">Back up</button>
+        <button type="button" id="import" class="secondary">Import backup</button>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
