@@ -33,3 +33,13 @@ Verified = Michael confirmed. Proposed = Claude suggested, not confirmed. Open =
 - PWA tooling/framework (decide in the bucket 01 plan).
 - Whether the work Android's MDM allows installing a PWA.
 - Whether a store release (v2) is actually wanted.
+
+## Log
+ID | Date | Status | Decision | Why / alternatives rejected
+---|------|--------|----------|----------------------------
+D-1 | 2026-11-24 | Verified | Bucket 01 tooling: plain HTML/CSS/JS, no framework, no build step, no npm packages. Deno 2.9.8 (already installed) runs tests and lint. Resolves Open "PWA tooling/framework". | Least to maintain; Pages serves files as-is. Rejected: installing Node + Vite (more moving parts), React/Svelte (overkill for a form and a list).
+D-2 | 2026-11-24 | Verified | Each reading stores one value tagged New or Total; the tag defaults to the last one used. | Works whichever measuring method wins and matches the old CSV's New/Total columns. Rejected: total depth only (old New data won't fit), separate New and Total fields (more to fill in outside).
+D-3 | 2026-11-24 | Verified | Readings are stored to one decimal place. Resolves Open "decimal precision". | Michael's choice. Rejected: two decimals, any decimals. Note: older values like 0.75 and 0.01 will need rounding in bucket 02.
+D-4 | 2026-11-24 | Verified | Each reading has an optional free-text notes field. | Old CSV uses notes. Rejected: no notes.
+D-5 | 2026-11-24 | Verified | Supersedes D-3. Readings are whole tenths of an inch, or exactly 0.01 meaning "Dusting". A Dusting button fills in 0.01 (typing 0.01 also works); the list shows "Dusting"; it counts as 0.01 in totals. | Shows it snowed without being significant, and old 0.01 readings import as-is. Rejected: typing 0.01 with no button.
+D-6 | 2026-11-24 | Verified | Bucket 01 backup = a "not backed up" reminder plus one-tap Back up via the phone's share sheet. Automatic Google Drive sync (Michael's own Drive, no server of ours) becomes its own later bucket, after a second opinion. | Browsers can't silently save or reload files on phones. Rejected: reminder only, Drive sync in bucket 01 (too big, Google setup, work phone may block sign-in).
