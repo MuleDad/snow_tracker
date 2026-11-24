@@ -230,5 +230,9 @@ $("import-file").addEventListener("change", async (e) => {
 
 navigator.storage?.persist?.().catch(() => {});
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
+
 resetForm();
 render();
