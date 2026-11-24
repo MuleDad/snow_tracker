@@ -21,4 +21,9 @@ Single user. Built as a PWA (installable web app) that works on iPhone and Andro
 - App store release would be a separate v2, not a v1 concern.
 
 ## Commands
-TBD once bucket 1 picks the tooling (see decisions/DECISIONS.md).
+No packages, no build step (D-1). Uses Deno for checks and Python to serve locally.
+- `deno task test`: run tests (`tests/*_test.js`)
+- `deno task lint`: lint
+- `deno task serve`: serve at http://localhost:8000
+- `python3 tools/make_icons.py`: regenerate the app icons
+- When changing which files the app loads, update `FILES` in `sw.js` and bump `CACHE`.
