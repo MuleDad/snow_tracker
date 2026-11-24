@@ -5,8 +5,10 @@ import {
   makeBackup,
   makeReading,
   mergeReadings,
+  freshState,
   parseBackup,
   parseInches,
+  parseStoredState,
   sortNewestFirst,
   toLocalInputValue,
 } from "../readings.js";
@@ -118,4 +120,24 @@ Deno.test("mergeReadings adds new, skips duplicates, never deletes (E-21)", () =
     ["2", 2],
     ["3", 3],
   ]);
+});
+
+Deno.test("parseStoredState: empty storage is a fresh start", () => {
+  assert.deepEqual(parseStoredState(null), { ok: true, state: freshState() });
+  assert.deepEqual(parseStoredState(""), { ok: true, state: freshState() });
+});
+
+Deno.test("parseStoredState: unreadable or wrong-shape data is flagged (verifier #7)", () => {
+  assert.equal(parseStoredState("{not json").ok, false);
+  assert.equal(parseStoredState('{"readings":5}').ok, false);
+  assert.equal(parseStoredState("null").ok, false);
+  assert.equal(parseStoredState("[]").ok, false);
+});
+
+Deno.test("parseStoredState: keeps readings and repairs bad fields", () => {
+  const r = parseStoredState(JSON.stringify({ readings: [{ id: "a" }], lastKind: "x", unsaved: "yes" }));
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.state.readings, [{ id: "a" }]);
+  assert.equal(r.state.lastKind, "total");
+  assert.equal(r.state.unsaved, false);
 });

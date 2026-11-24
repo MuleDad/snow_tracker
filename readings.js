@@ -104,6 +104,27 @@ export function parseBackup(text) {
   return { ok: true, readings };
 }
 
+export function freshState() {
+  return { readings: [], lastKind: "total", unsaved: false, lastBackupAt: null };
+}
+
+// Parses the app's saved state. Empty storage is a fresh start.
+// Returns { ok: true, state } or { ok: false } when the data is unreadable.
+export function parseStoredState(raw) {
+  if (raw === null || raw === undefined || raw === "") return { ok: true, state: freshState() };
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return { ok: false };
+  }
+  if (!data || typeof data !== "object" || !Array.isArray(data.readings)) return { ok: false };
+  const state = { ...freshState(), ...data };
+  if (!KINDS.includes(state.lastKind)) state.lastKind = "total";
+  state.unsaved = state.unsaved === true;
+  return { ok: true, state };
+}
+
 // Adds incoming readings whose id isn't already present. Never removes or overwrites.
 export function mergeReadings(existing, incoming) {
   const ids = new Set(existing.map((r) => r.id));

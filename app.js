@@ -1,10 +1,12 @@
 import {
   DUSTING,
   formatInches,
+  freshState,
   makeBackup,
   makeReading,
   mergeReadings,
   parseBackup,
+  parseStoredState,
   sortNewestFirst,
   toLocalInputValue,
 } from "./readings.js";
@@ -16,32 +18,55 @@ const form = $("entry-form");
 
 const state = loadState();
 let editingId = null;
+// True once the user changes the time field; until then a new reading uses "now".
+let timeTouched = false;
 
-function loadState() {
-  const fresh = { readings: [], lastKind: "total", unsaved: false, lastBackupAt: null };
-  let raw = null;
+// Reads saved state. Returns { ok: true, state }, or { ok: false, reason }.
+function readStored() {
+  let raw;
   try {
     raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fresh;
-    return { ...fresh, ...JSON.parse(raw) };
   } catch {
-    // Keep the unreadable data aside rather than overwrite it.
-    try {
-      if (raw) localStorage.setItem(`${STORAGE_KEY}.unreadable`, raw);
-    } catch { /* storage unavailable */ }
-    alert("Saved readings could not be read. Import a backup to restore them.");
-    return fresh;
+    return { ok: false, reason: "unavailable" };
   }
+  const parsed = parseStoredState(raw);
+  if (parsed.ok) return parsed;
+  // Keep the unreadable data aside rather than overwrite it.
+  try {
+    localStorage.setItem(`${STORAGE_KEY}.unreadable`, raw);
+  } catch { /* storage unavailable */ }
+  return { ok: false, reason: "unreadable" };
 }
 
-function saveState() {
+function loadState() {
+  const r = readStored();
+  if (r.ok) return r.state;
+  if (r.reason === "unreadable") {
+    alert("Saved readings could not be read. Import a backup to restore them.");
+  } else {
+    alert("This device isn't letting the app save readings.");
+  }
+  return freshState();
+}
+
+// Re-reads storage so changes made in another open copy of the app aren't lost.
+// Keeps what's in memory if storage can't be read.
+function refreshState() {
+  const r = readStored();
+  if (r.ok) Object.assign(state, r.state);
+}
+
+// Saves `next` and only then makes it the current state, so a failed save
+// never leaves memory and storage disagreeing.
+function commit(next) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    return true;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     showError("Could not save on this device. Back up now if you can.");
     return false;
   }
+  Object.assign(state, next);
+  return true;
 }
 
 function showError(msg) {
@@ -62,6 +87,7 @@ function setKind(kind) {
 
 function resetForm() {
   editingId = null;
+  timeTouched = false;
   $("form-title").textContent = "New reading";
   $("taken-at").value = toLocalInputValue(new Date());
   $("inches").value = "";
@@ -88,8 +114,8 @@ function startEdit(reading) {
   form.scrollIntoView({ behavior: "smooth" });
 }
 
-function markChanged() {
-  state.unsaved = true;
+function editedReadingGone() {
+  return editingId !== null && !state.readings.some((r) => r.id === editingId);
 }
 
 function render() {
@@ -126,17 +152,51 @@ function render() {
     list.append(li);
   }
 
-  $("backup-banner").hidden = !(state.unsaved && state.readings.length > 0);
+  $("backup-banner").hidden = !state.unsaved;
   $("last-backup").textContent = state.lastBackupAt
     ? `Last backup: ${fmt.format(new Date(state.lastBackupAt))}`
     : "Not backed up yet.";
 }
 
+// Picks up changes from another open copy of the app and a stale default time.
+function syncFromStorage() {
+  refreshState();
+  render();
+  if (editedReadingGone()) {
+    resetForm();
+    showStatus("That reading was deleted in another window.");
+  } else if (editingId === null && !timeTouched) {
+    $("taken-at").value = toLocalInputValue(new Date());
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncFromStorage();
+});
+globalThis.addEventListener("storage", (e) => {
+  if (e.key === STORAGE_KEY) syncFromStorage();
+});
+
+for (const type of ["input", "change"]) {
+  $("taken-at").addEventListener(type, () => {
+    timeTouched = true;
+  });
+}
+
 form.addEventListener("submit", (e) => {
   e.preventDefault();
+  refreshState();
+  if (editedReadingGone()) {
+    resetForm();
+    render();
+    showStatus("That reading was deleted in another window.");
+    return;
+  }
+  const isNew = editingId === null;
   const built = makeReading({
     id: editingId ?? crypto.randomUUID(),
-    takenAt: $("taken-at").value,
+    // A new reading whose time wasn't changed is taken "now", even if the form sat open.
+    takenAt: isNew && !timeTouched ? new Date() : $("taken-at").value,
     inches: $("inches").value,
     kind: selectedKind(),
     note: $("note").value,
@@ -145,18 +205,13 @@ form.addEventListener("submit", (e) => {
     showError(built.error);
     return;
   }
-  const wasEditing = editingId !== null;
-  if (wasEditing) {
-    state.readings = state.readings.map((r) => (r.id === editingId ? built.reading : r));
-  } else {
-    state.readings.push(built.reading);
-  }
-  state.lastKind = built.reading.kind;
-  markChanged();
-  if (!saveState()) return;
+  const readings = isNew
+    ? [...state.readings, built.reading]
+    : state.readings.map((r) => (r.id === editingId ? built.reading : r));
+  if (!commit({ ...state, readings, lastKind: built.reading.kind, unsaved: true })) return;
   resetForm();
   render();
-  showStatus(wasEditing ? "Reading updated." : "Reading saved.");
+  showStatus(isNew ? "Reading saved." : "Reading updated.");
 });
 
 $("dusting").addEventListener("click", () => {
@@ -171,39 +226,55 @@ $("cancel").addEventListener("click", () => {
 
 $("delete").addEventListener("click", () => {
   if (!editingId || !confirm("Delete this reading?")) return;
-  state.readings = state.readings.filter((r) => r.id !== editingId);
-  markChanged();
-  if (!saveState()) return;
+  refreshState();
+  const readings = state.readings.filter((r) => r.id !== editingId);
+  if (!commit({ ...state, readings, unsaved: true })) return;
   resetForm();
   render();
   showStatus("Reading deleted.");
 });
 
+function download(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 async function backUp() {
+  refreshState();
   const now = new Date();
   const json = JSON.stringify(makeBackup(state.readings, now), null, 2);
-  const name = `snow-tracker-backup-${toLocalInputValue(now).slice(0, 10)}.json`;
-  const file = new File([json], name, { type: "application/json" });
+  const base = `snow-tracker-backup-${toLocalInputValue(now).slice(0, 10)}`;
+  // Some phones won't share .json files, so offer a .txt copy of the same backup.
+  const candidates = [
+    new File([json], `${base}.json`, { type: "application/json" }),
+    new File([json], `${base}.txt`, { type: "text/plain" }),
+  ];
+  const shareable = candidates.find((f) => navigator.canShare?.({ files: [f] }));
+  let saved;
   try {
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: "Snow Tracker backup" });
+    if (shareable) {
+      await navigator.share({ files: [shareable], title: "Snow Tracker backup" });
+      saved = true;
     } else {
-      const url = URL.createObjectURL(file);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      download(candidates[0]);
+      saved = confirm("Did the backup file save? Tap OK only if you can see it in your downloads.");
     }
   } catch (err) {
     if (err?.name !== "AbortError") showStatus(`Backup failed: ${err?.message ?? err}`);
     return;
   }
-  state.unsaved = false;
-  state.lastBackupAt = now.toISOString();
-  saveState();
+  if (!saved) {
+    showStatus("Backup not confirmed. The reminder stays on until a backup is saved.");
+    return;
+  }
+  refreshState();
+  if (!commit({ ...state, unsaved: false, lastBackupAt: now.toISOString() })) return;
   render();
-  showStatus(`Backed up ${state.readings.length} readings.`);
+  showStatus(`Backed up ${JSON.parse(json).readings.length} readings.`);
 }
 
 $("backup").addEventListener("click", backUp);
@@ -215,17 +286,27 @@ $("import-file").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   e.target.value = "";
   if (!file) return;
-  const parsed = parseBackup(await file.text());
+  let text;
+  try {
+    text = await file.text();
+  } catch {
+    showStatus("Couldn't read that file.");
+    return;
+  }
+  const parsed = parseBackup(text);
   if (!parsed.ok) {
     showStatus(parsed.error);
     return;
   }
+  refreshState();
   const result = mergeReadings(state.readings, parsed.readings);
-  state.readings = result.readings;
-  if (result.added > 0) markChanged();
-  if (!saveState()) return;
+  const next = { ...state, readings: result.readings, unsaved: state.unsaved || result.added > 0 };
+  if (!commit(next)) return;
   render();
-  showStatus(`Imported ${result.added} readings, skipped ${result.skipped} already here.`);
+  showStatus(
+    `Imported ${result.added} readings. ${result.skipped} were already here ` +
+      "(the versions on this phone were kept).",
+  );
 });
 
 navigator.storage?.persist?.().catch(() => {});
