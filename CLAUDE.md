@@ -26,4 +26,5 @@ No packages, no build step (D-1). Uses Deno for checks and Python to serve local
 - `deno task lint`: lint
 - `deno task serve`: serve at http://localhost:8000
 - `python3 tools/make_icons.py`: regenerate the app icons
-- When changing which files the app loads, update `FILES` in `sw.js` and bump `CACHE`.
+- Bump `CACHE` in `sw.js` on every deploy that changes app files (D-8); update `FILES` when the
+  app loads a new file.

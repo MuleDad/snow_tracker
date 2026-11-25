@@ -5,6 +5,7 @@ import {
   makeBackup,
   makeReading,
   mergeReadings,
+  needsConfirm,
   parseBackup,
   parseStoredState,
   sortNewestFirst,
@@ -185,13 +186,6 @@ for (const type of ["input", "change"]) {
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
-  refreshState();
-  if (editedReadingGone()) {
-    resetForm();
-    render();
-    showStatus("That reading was deleted in another window.");
-    return;
-  }
   const isNew = editingId === null;
   const built = makeReading({
     id: editingId ?? crypto.randomUUID(),
@@ -205,10 +199,27 @@ form.addEventListener("submit", (e) => {
     showError(built.error);
     return;
   }
+  const value = built.reading.inches;
+  const original = state.readings.find((r) => r.id === editingId);
+  if (
+    needsConfirm(value) && (isNew || original?.inches !== value) &&
+    !confirm(`${formatInches(value)} is a lot of snow. Save it?`)
+  ) {
+    return;
+  }
+  // Re-read right before writing so another open window's changes aren't lost.
+  refreshState();
+  if (editedReadingGone()) {
+    resetForm();
+    render();
+    showStatus("That reading was deleted in another window.");
+    return;
+  }
   const readings = isNew
     ? [...state.readings, built.reading]
     : state.readings.map((r) => (r.id === editingId ? built.reading : r));
-  if (!commit({ ...state, readings, lastKind: built.reading.kind, unsaved: true })) return;
+  const next = { ...state, readings, lastKind: built.reading.kind, unsaved: true, rev: state.rev + 1 };
+  if (!commit(next)) return;
   resetForm();
   render();
   showStatus(isNew ? "Reading saved." : "Reading updated.");
@@ -228,7 +239,7 @@ $("delete").addEventListener("click", () => {
   if (!editingId || !confirm("Delete this reading?")) return;
   refreshState();
   const readings = state.readings.filter((r) => r.id !== editingId);
-  if (!commit({ ...state, readings, unsaved: true })) return;
+  if (!commit({ ...state, readings, unsaved: true, rev: state.rev + 1 })) return;
   resetForm();
   render();
   showStatus("Reading deleted.");
@@ -246,6 +257,8 @@ function download(file) {
 async function backUp() {
   refreshState();
   const now = new Date();
+  const backedUpRev = state.rev;
+  const count = state.readings.length;
   const json = JSON.stringify(makeBackup(state.readings, now), null, 2);
   const base = `snow-tracker-backup-${toLocalInputValue(now).slice(0, 10)}`;
   // Some phones won't share .json files, so offer a .txt copy of the same backup.
@@ -254,27 +267,35 @@ async function backUp() {
     new File([json], `${base}.txt`, { type: "text/plain" }),
   ];
   const shareable = candidates.find((f) => navigator.canShare?.({ files: [f] }));
-  let saved;
   try {
     if (shareable) {
       await navigator.share({ files: [shareable], title: "Snow Tracker backup" });
-      saved = true;
     } else {
       download(candidates[0]);
-      saved = confirm("Did the backup file save? Tap OK only if you can see it in your downloads.");
     }
   } catch (err) {
     if (err?.name !== "AbortError") showStatus(`Backup failed: ${err?.message ?? err}`);
     return;
   }
+  // Neither sharing nor downloading proves the file landed somewhere safe, so ask.
+  const saved = confirm(
+    "Did the backup save somewhere you can get it back from (like Drive, Files or Downloads)? " +
+      "Tap OK only if it did.",
+  );
   if (!saved) {
     showStatus("Backup not confirmed. The reminder stays on until a backup is saved.");
     return;
   }
   refreshState();
-  if (!commit({ ...state, unsaved: false, lastBackupAt: now.toISOString() })) return;
+  // If readings changed while sharing (e.g. in another window), this file is already behind.
+  const current = state.rev === backedUpRev;
+  if (!commit({ ...state, unsaved: !current, lastBackupAt: now.toISOString() })) return;
   render();
-  showStatus(`Backed up ${JSON.parse(json).readings.length} readings.`);
+  showStatus(
+    current
+      ? `Backed up ${count} readings.`
+      : `Backed up ${count} readings, but readings changed during the backup. Back up again.`,
+  );
 }
 
 $("backup").addEventListener("click", backUp);
@@ -300,7 +321,13 @@ $("import-file").addEventListener("change", async (e) => {
   }
   refreshState();
   const result = mergeReadings(state.readings, parsed.readings);
-  const next = { ...state, readings: result.readings, unsaved: state.unsaved || result.added > 0 };
+  const changed = result.added > 0;
+  const next = {
+    ...state,
+    readings: result.readings,
+    unsaved: state.unsaved || changed,
+    rev: changed ? state.rev + 1 : state.rev,
+  };
   if (!commit(next)) return;
   render();
   showStatus(

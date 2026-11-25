@@ -28,6 +28,12 @@ export function parseInches(text) {
   return { ok: true, value: Math.round(tenths) / 10 };
 }
 
+// Double-digit amounts are unusual enough to confirm (catches "25" typed for "2.5").
+export const CONFIRM_AT_INCHES = 10;
+export function needsConfirm(value) {
+  return value >= CONFIRM_AT_INCHES;
+}
+
 export function formatInches(value) {
   if (value === DUSTING) return "Dusting";
   return `${value.toFixed(1)}"`;
@@ -105,7 +111,8 @@ export function parseBackup(text) {
 }
 
 export function freshState() {
-  return { readings: [], lastKind: "total", unsaved: false, lastBackupAt: null };
+  // rev goes up on every change to readings, so a backup can tell if it's still current.
+  return { readings: [], lastKind: "total", unsaved: false, lastBackupAt: null, rev: 0 };
 }
 
 // Parses the app's saved state. Empty storage is a fresh start.
@@ -122,6 +129,7 @@ export function parseStoredState(raw) {
   const state = { ...freshState(), ...data };
   if (!KINDS.includes(state.lastKind)) state.lastKind = "total";
   state.unsaved = state.unsaved === true;
+  if (!Number.isInteger(state.rev)) state.rev = 0;
   return { ok: true, state };
 }
 

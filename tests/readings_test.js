@@ -6,6 +6,7 @@ import {
   makeReading,
   mergeReadings,
   freshState,
+  needsConfirm,
   parseBackup,
   parseInches,
   parseStoredState,
@@ -140,4 +141,12 @@ Deno.test("parseStoredState: keeps readings and repairs bad fields", () => {
   assert.deepEqual(r.state.readings, [{ id: "a" }]);
   assert.equal(r.state.lastKind, "total");
   assert.equal(r.state.unsaved, false);
+  assert.equal(r.state.rev, 0);
+});
+
+Deno.test("needsConfirm: double digits ask first (D-10)", () => {
+  assert.equal(needsConfirm(9.9), false);
+  assert.equal(needsConfirm(DUSTING), false);
+  assert.equal(needsConfirm(10), true);
+  assert.equal(needsConfirm(25), true);
 });

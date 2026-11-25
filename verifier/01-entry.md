@@ -10,6 +10,7 @@
 | E-06 | Invalid input (blank, negative, letters, values that aren't whole tenths or 0.01, like 2.55 or 0.02) | Rejected with a clear message; nothing saved |
 | E-19 | Dusting | Dusting button saves 0.01; typing 0.01 does the same; list shows "Dusting"; stored value is 0.01 so later totals (bucket 03) include it |
 | E-20 | Backup reminder | Banner appears after any add/edit/delete since the last backup and clears after Back up |
+| E-22 | Big amounts | Saving 10" or more asks first; declining saves nothing (D-10) |
 | E-21 | Import never deletes | Importing into an app with existing readings keeps them all, adds new ones, skips duplicates |
 | E-15 | New/Total tag | Each reading saves its tag; a new reading's tag defaults to the last one used |
 | E-16 | Notes | A reading saves with or without a note; the note shows in the list and can be edited |
